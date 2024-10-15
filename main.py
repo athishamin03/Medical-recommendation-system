@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pickle
 from fuzzywuzzy import process
-import ast
+
 # Load datasets
 symptom = pd.read_csv('datasets/symtoms_df.csv')
 precaution = pd.read_csv('datasets/precautions_df.csv')
@@ -19,23 +19,31 @@ svc = pickle.load(open("models/svc.pkl", 'rb'))
 app = Flask(__name__)
 
 # Helper function
-def helper(dis):
-    desc = description[description['Disease'] == dis]['Description']
+def helper(disease):
+    desc = description[description['Disease'] == disease]['Description']
     desc = " ".join([w for w in desc])
 
-    prec = precaution[precaution["Disease"] == dis][["Precaution_1", "Precaution_2", "Precaution_3", "Precaution_4"]]
-    prec = [col for col in prec.values] if not prec.empty else []
+    if disease == 'Joint Pain':
+        prec = ["Avoid heavy lifting", "Exercise regularly to maintain joint mobility", "Use supportive devices like braces", "Maintain a healthy weight"]
+        med = ["Pain relievers like ibuprofen", "Anti-inflammatory medications"]
+        die = ["Increase intake of omega-3 fatty acids", "Consume anti-inflammatory foods like berries and green tea"]
+        wrkout = ["Low-impact exercises like swimming", "Strength training for muscles around joints", "Stretching exercises"]
 
-    med = medication[medication['Disease'] == dis]['Medication']
-    med = [med for med in med.values] if not med.empty else []
+    else:
+        prec = precaution[precaution["Disease"] == disease][["Precaution_1", "Precaution_2", "Precaution_3", "Precaution_4"]]
+        prec = [col for col in prec.values] if not prec.empty else []
 
-    die = diet[diet['Disease'] == dis]['Diet']
-    die = [die for die in die.values] if not die.empty else []
+        med = medication[medication['Disease'] == disease]['Medication']
+        med = [med for med in med.values] if not med.empty else []
 
-    wrkout = workout[workout['disease'] == dis]['workout']
-    wrkout = [wo for wo in wrkout.values] if not wrkout.empty else []
+        die = diet[diet['Disease'] == disease]['Diet']
+        die = [die for die in die.values] if not die.empty else []
+
+        wrkout = workout[workout['disease'] == disease]['workout']
+        wrkout = [wo for wo in wrkout.values] if not wrkout.empty else []
 
     return desc, prec, med, die, wrkout
+
 
 disease_list = {
     15: 'Fungal infection', 4: 'Allergy', 16: 'GERD', 9: 'Chronic cholestasis', 14: 'Drug Reaction',
@@ -85,7 +93,7 @@ symptoms_dict = {
     'inflammatory_nails': 128, 'blister': 129, 'red_sore_around_nose': 130, 'yellow_crust_ooze': 131
 }
 
-invalid_words = {'in', 'on', 'the', 'for', 'hi', 'hello', 'were', 'where', 'of', 'half', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'}
+invalid_words = {'in', 'on', 'the', 'for', 'hi', 'hello', 'were', 'where', 'of','hip' ,'prominent','small','big','half', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'family_history', 'blood','anal'}
 
 def get_closest_symptom(user_symptom):
     closest_match = process.extractOne(user_symptom, symptoms_dict.keys(), score_cutoff=70)
@@ -126,6 +134,9 @@ def is_nausea_related(symptoms):
     return None
 
 def get_predicted_value(patient_symptoms):
+    joint_pain_symptoms = {'hip_joint_pain', 'knee_pain', 'leg_pain', 'hand_pain', 'joint_pain', 'belly_pain'}
+    if any(symptom in joint_pain_symptoms for symptom in patient_symptoms):
+        return 'Joint Pain'
     # Define specific symptoms related to migraine
     migraine_symptoms = {'pulsating_headache', 'sensitivity_to_light', 'lightheadedness'}
 
@@ -197,7 +208,7 @@ def get_predicted_value(patient_symptoms):
 
 
 
-@app.route('/index')
+@app.route('/')
 def index():
     return render_template("index.html", symptoms=list(symptoms_dict.keys()))
 
@@ -215,11 +226,14 @@ def predict():
 
         user_symp = [sym for sym in user_symp if sym not in invalid_words]
 
+
         if len(user_symp) == 1 and (user_symp[0] == 'sweating' or user_symp[0] == 'sweat'):
             return render_template('index.html', error_message="Please provide more symptoms!")
 
         if not user_symp:
             return render_template('index.html', error_message="Please provide valid symptoms!")
+
+
 
         predicted_disease = get_predicted_value(user_symp)
 
@@ -228,7 +242,6 @@ def predict():
 
         desc, prec, med, die, wrkout = helper(predicted_disease)
 
-<<<<<<< HEAD
         # Handle empty lists and non-list content
         prec = prec if prec else ["No precautions available."]
         med = med if med else ["No medications available."]
@@ -242,23 +255,6 @@ def predict():
                 except (ValueError, SyntaxError):
                     return [item]
             return item
-=======
- 
-        if type(med) == list:
-            med = ast.literal_eval(med[0] ) 
-
-        if type(die) == list:
-            die = ast.literal_eval( die[0] )        
-
-        if not prec:
-            return render_template('index.html', error_message="No precautions found for the predicted disease.")
-        if not med:
-            return render_template('index.html', error_message="No medications found for the predicted disease.")
-        if not die:
-            return render_template('index.html', error_message="No diets found for the predicted disease.")
-        if not wrkout:
-            return render_template('index.html', error_message="No workouts found for the predicted disease.")
->>>>>>> 0304195eb6a3ca19a7fb81d2edff2baa8ae0a57a
 
         prec = [parse_list(p) for p in prec]
         med = [parse_list(m) for m in med]
